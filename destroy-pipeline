@@ -1,0 +1,64 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool: default
+ # vmImage: ubuntu-latest
+
+variables:
+  provider: 'azurerm'
+  command: 'init'
+  backendServiceArm: 'azureado'
+  backendAzureRmResourceGroupName: 'terraform-storage'
+  backendAzureRmStorageAccountName: 'terraformstategop'
+  backendAzureRmContainerName: 'tfstatefiles'
+  backendAzureRmKey: 'adotfstate'
+
+stages:
+  - stage: tfdestroy
+    jobs:
+      
+      - job: destroyapproval
+        
+        condition: and (succeeded(),ne(variables['Build.Reason'],'PullRequest'))
+        pool: server
+        displayName: wait for approval before destroy
+        steps:
+          
+          - task: ManualValidation@0
+            timeoutInMinutes: 15
+            inputs:
+              instructions: 'please approve the job'
+              emailRecipients: 'gopal1409@gmail.com'
+              onTimeout: 'reject'
+          
+      - job: apply
+        dependsOn: destroyapproval
+        condition: and (succeeded(),ne(variables['Build.Reason'],'PullRequest'))
+        pool: default
+        displayName: destroying all the resources
+        steps:
+          
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: 'latest'
+          - task: TerraformTaskV4@4
+            displayName: reintilzied required for tfstate
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: 'azureado'
+              backendAzureRmResourceGroupName: 'terraform-storage'
+              backendAzureRmStorageAccountName: 'terraformstategop'
+              backendAzureRmContainerName: 'tfstatefiles'
+              backendAzureRmKey: '$(backendAzureRmKey)'
+          - task: TerraformTaskV4@4
+            displayName: destroy the resource
+            inputs:
+              provider: 'azurerm'
+              command: 'destroy'
+              environmentServiceNameAzureRM: 'azureado'
